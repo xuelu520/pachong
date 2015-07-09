@@ -7,12 +7,10 @@
  */
 function run(){
     header('Content-Type:text/html;charset=utf-8');
-    date_default_timezone_set('PRC');
-    //下载图片保存地址，最后要有/
+    date_default_timezone_set('PRC'); //set time zone
+    //图片保存目录 pic save path
     define('PATH_DOWNLOAD', './download/');
-    if (!file_exists(PATH_DOWNLOAD)) {
-        mkdir(PATH_DOWNLOAD);
-    }
+    save_dir(PATH_DOWNLOAD);
     set_time_limit(0);
     $city_url = "http://wd.koudai.com/wd/cate/getList?param={%22userID%22:%22337474108%22}&callback=jsonpcallback_1436277342180_5235922697465867&ver=2015070700014";
     //验证curl模块
@@ -36,9 +34,7 @@ function run(){
         //解析目录jsonp数据
         $items = get_items($mulu['res']);
         foreach($items['result'] as $item){
-
             //保存目录
-//            echo var_dump(str_replace(" ","",$item['itemName']))."\n";continue;
             $name = str_replace(" ","",$item['itemName']);
             $name = str_replace("/","",$name);
             $name = str_replace(".","",$name);
@@ -49,8 +45,6 @@ function run(){
             //解析二级页面
             $second_url = "http://weidian.com/wd/item/getPubInfo?param={%22itemID%22:".$item['itemID'].",%22page%22:1}&callback=jsonpcallback_1436279264909_6875134997535497&ver=2015070700014";
             $senond_mulu = get_mulu($second_url);
-//        echo "二级目录解析完成！\n";
-//        echo "开始下载图片...\n";
             $s_items = get_items($senond_mulu['res']);
             echo "----二级目录：".$item['itemName']."  图片数量：".count($s_items['result']['Imgs'])."\n";
             echo "----开始下载...\n";
@@ -66,29 +60,30 @@ function run(){
     }
 }
 
+/**
+ * curl 模块
+ * @param $url
+ * @return array
+ */
 function get_mulu($url){
-    //初始化curl
-    $curl = curl_init($url);
-    //curl超时 30s
-    curl_setopt($curl, CURLOPT_TIMEOUT, '30');
+    $curl = curl_init($url);//初始化curl
+    curl_setopt($curl, CURLOPT_TIMEOUT, '30');//curl超时 30s
     //user-agent头
     curl_setopt($curl, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/534.30 (KHTML, like Gecko) Chrome/12.0.742.122 Safari/534.30");
-    //返回文件流
-    curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
-    //关闭头文件数据流输出
-    curl_setopt($curl, CURLOPT_HEADER, 0);
-    //禁止服务端验证
-    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-    //转码结果
-    $res = iconv('GBK', 'UTF-8', curl_exec($curl));
-    //HTTP 状态码
-    $http_status = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-    //耗时
-    $total_time = curl_getinfo($curl, CURLINFO_TOTAL_TIME);
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);//返回文件流
+    curl_setopt($curl, CURLOPT_HEADER, 0);//关闭头文件数据流输出
+    $res = iconv('GBK', 'UTF-8', curl_exec($curl));//转码结果
+    $http_status = curl_getinfo($curl, CURLINFO_HTTP_CODE);//HTTP 状态码
+    $total_time = curl_getinfo($curl, CURLINFO_TOTAL_TIME);//耗时
     curl_close($curl);
     return ['status'=>$http_status,'time'=>$total_time,'res'=>$res];
 }
 
+/**
+ * 建立目录
+ * create dir if not exist
+ * @param $dir string dir_path
+ */
 function save_dir($dir){
     //建立文件夹，存在的话不用建立
     if (!file_exists($dir)) {
@@ -96,32 +91,57 @@ function save_dir($dir){
     }
 }
 
+/**
+ *  截取jsonp字符串，获取json字符串
+ *  get json string from jsonp string
+ * @param $jsonp string jsonp string
+ * @return mixed
+ */
 function get_items($jsonp){
-    $start_index = strpos($jsonp,"{"); //开始位置
+    $start_index = strpos($jsonp,"{"); //开始位置 start index
     $items = substr($jsonp,$start_index,-1);
     return json_decode(mb_convert_encoding($items, 'UTF-8', 'ASCII,UTF-8,ISO-8859-1'),true);
 }
 
+/**
+ * 获取不带参数的图片url
+ * get pic url with no args
+ * @param $pic string 图片URL pic url
+ * @return string string pic url with no args
+ */
 function get_pic_url($pic){
-    $end_index = strpos($pic,"?"); //结束位置
+    $end_index = strpos($pic,"?"); //结束位置 end index
     $p_url = substr($pic,0,$end_index);
     return mb_convert_encoding($p_url, 'UTF-8', 'ASCII,UTF-8,ISO-8859-1');
 }
 
+/**
+ * 保存文件
+ * @param $pic_url string 远程图片URL pic url
+ * @param $girl_dir string 图片目录 pic dir
+ * @param $index int 文件数序 file index
+ */
 function save_file($pic_url,$girl_dir,$index){
     echo $pic_url."\n";
-    ob_start();//打开输出
-    readfile($pic_url);//输出图片文件
-    $img = ob_get_contents();//得到浏览器输出
+    ob_start();
+    readfile($pic_url);//获取图片文件 get pic
+    $img = ob_get_contents();//获取文件缓存数据
     ob_end_clean();//清除输出并关闭
-    $filename = $girl_dir.$index.".jpg";
+    $filename = $girl_dir.$index.".jpg"; //文件目录
     $fp2 = fopen(get_gbk($filename), "a");
     fwrite($fp2, $img);//向当前目录写入图片文件，并重新命名
     fclose($fp2);
 }
 
+/**
+ * 字符串编码转换  XX -> GBK
+ * @param $str
+ * @return string
+ */
 function get_gbk($str){
     return mb_convert_encoding($str, 'GBK', 'ASCII,UTF-8,ISO-8859-1');
 }
+
+
 run();
 
